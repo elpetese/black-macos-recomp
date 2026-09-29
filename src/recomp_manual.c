@@ -181,3 +181,35 @@ void recomp_unimpl(const char *text, uint32_t va)
     }
     if (stop) abort();
 }
+
+/* ── NaN reaching an SSE compare (diagnostic) ────────────────────────────
+ *
+ * Called by a generated build whose comiss/ucomiss sites were instrumented
+ * (sed over src/recomp/gen; not part of the normal generator output). Reports
+ * the first NaN seen in each guest function and then every power-of-two count
+ * of it, so a run can be killed at any time and still say where NaNs come
+ * from and how many. */
+#include <string.h>
+
+void recomp_nan_seen(const char *fn)
+{
+    enum { SLOTS = 96 };
+    static struct { char name[24]; unsigned long n; } t[SLOTS];
+    static int used;
+    static unsigned long total;
+    int i;
+
+    total++;
+    for (i = 0; i < used; i++)
+        if (strncmp(t[i].name, fn, sizeof t[i].name - 1) == 0)
+            break;
+    if (i == used) {
+        if (used == SLOTS)
+            return;
+        strncpy(t[used].name, fn, sizeof t[used].name - 1);
+        used++;
+    }
+    t[i].n++;
+    if ((t[i].n & (t[i].n - 1)) == 0)
+        fprintf(stderr, "[NAN] %s: %lu (all functions: %lu)\n", fn, t[i].n, total);
+}
