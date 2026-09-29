@@ -105,6 +105,11 @@ static void crash_handler(int sig, siginfo_t *si, void *uctx)
         return;
 
     xbox_KeyboardRestoreTerminal();      /* leave the shell usable */
+    {
+        extern void xbox_FramebufferReleaseMouse(void) __attribute__((weak));
+        if (xbox_FramebufferReleaseMouse)
+            xbox_FramebufferReleaseMouse();   /* and the cursor free */
+    }
     fprintf(stderr, "\n[CRASH] %s at host pc=%p, fault addr=%p\n",
             sig == SIGBUS ? "SIGBUS" : "SIGSEGV", (void *)pc, (void *)fault);
     if (off && fault >= off && fault - off <= 0xFFFFFFFFu)
