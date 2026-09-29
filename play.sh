@@ -2,6 +2,10 @@
 # Run Black and play it yourself (keyboard + mouse in the game window).
 #   ./play.sh                 normal
 #   RECOMP_MOUSE_SENS=800 ./play.sh    slower mouse look (default 1800)
+#   FAST=1 ./play.sh          cut every movie (logos, credits, mission
+#                             cinematic) to its header + 3 packets, so the first
+#                             level is reached in ~1.5 min instead of ~7.
+#                             FAST=<n> keeps n packets (about 0.5-2 s each).
 # Log of the run: build-mac/last-run.log
 set -e
 HERE="${0:A:h}"
@@ -14,9 +18,14 @@ GAME="${BLACK_GAME_DIR:-/path/to/project/black/extracted/Black (USA).xiso}"
 echo "Black arrancando. Ventana del juego: dale foco y usa el teclado."
 echo "Enter = Start (título)   Espacio = aceptar   flechas = menús   Tab = atrás"
 echo "En el nivel: WASD mover, ratón o IJKL mirar, clic izq. disparar, clic der. apuntar, Esc suelta el ratón."
+[ -n "$FAST" ] && echo "MODO RÁPIDO: vídeos recortados (FAST=$FAST). Sin FAST se reproducen completos."
 echo "Ctrl+C aquí cierra el juego. Log: $HERE/build-mac/last-run.log"
 
 cd "$HERE/build-mac"
+# FAST=1 (or any non-number) -> RECOMP_XMV_PACKETS=3; FAST=<n> -> n; unset -> full movies.
+if [ -n "$FAST" ]; then
+    case "$FAST" in ''|*[!0-9]*|0|1) export RECOMP_XMV_PACKETS=3 ;; *) export RECOMP_XMV_PACKETS="$FAST" ;; esac
+fi
 # RECOMP_KEYBOARD=0: the window reads the keys; the terminal reader is not needed.
 exec env RECOMP_XEMU_GPU=1 RECOMP_VBLANK=1 RECOMP_AC97_READY=1 RECOMP_PB_EXEC=1 \
          RECOMP_FB_WINDOW=1 RECOMP_KEYBOARD=0 \
