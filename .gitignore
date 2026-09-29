@@ -1,0 +1,10 @@
+build-mac/
+build*/
+# Regenerable from xboxrecomp (see memory / README); the pre-v0.12 copy is
+# kept outside git as src/recomp/gen.orig-2026-09-28.
+src/recomp/gen/
+src/recomp/gen.orig-*/
+src/recomp/gen.new/
+._*
+.DS_Store
+*.log

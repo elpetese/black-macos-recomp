@@ -1,0 +1,7 @@
+[
+ {"start": "0x002776B0", "why": "D3D tail-jump target the disassembler still misses; stubbed it leaked guest stack"},
+ {"start": "0x0027E397", "why": "XPP USB class-driver callback table (0x0027CFA8); function after ret, no prologue"},
+ {"start": "0x0027E3E9", "why": "XPP USB class-driver callback table (0x0027CFF0)"},
+ {"start": "0x0027E7DD", "why": "XPP USB class-driver callback table (0x0027D004)"},
+ {"start": "0x00282EF5", "why": "XPP USB class-driver callback table (0x0027D048)"}
+]
