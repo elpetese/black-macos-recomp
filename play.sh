@@ -8,7 +8,9 @@
 #                             largest 4:3 that fits the screen)
 #   ASPECT=4:3 ./play.sh      picture shape (default 16:9: the 4:3 game image is
 #                             stretched to fill a widescreen; 4:3 = original)
-#   SCALE=3 ./play.sh         render at 3x (1920x1440) for a sharp picture
+#   SCALE=1 ./play.sh         internal resolution: default 2 (1280x960, sharp and
+#                             as fast as 1). 3 (1920x1440) froze the game when
+#                             the level loaded, so it is experimental.
 #   FILTER=nearest ./play.sh  hard pixels instead of smooth scaling
 #   FAST=1 ./play.sh          cut every movie (logos, credits, mission
 #                             cinematic) to its header + 3 packets, so the first
@@ -39,7 +41,7 @@ fi
 [ -n "$WINDOW" ] && export RECOMP_WINDOW="$WINDOW"
 [ -n "$FILTER" ] && export RECOMP_FILTER="$FILTER"
 [ -n "$ASPECT" ] && export RECOMP_ASPECT="$ASPECT"
-[ -n "$SCALE" ] && export RECOMP_SCALE="$SCALE"
+export RECOMP_SCALE="${SCALE:-2}"
 # RECOMP_KEYBOARD=0: the window reads the keys; the terminal reader is not needed.
 exec env RECOMP_XEMU_GPU=1 RECOMP_VBLANK=1 RECOMP_AC97_READY=1 RECOMP_PB_EXEC=1 \
          RECOMP_FB_WINDOW=1 RECOMP_KEYBOARD=0 \
