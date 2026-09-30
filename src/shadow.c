@@ -33,6 +33,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
+#include <stdbool.h>
 #include <math.h>
 #include <time.h>
 #include <pthread.h>
@@ -43,8 +44,9 @@
 
 extern ptrdiff_t g_xbox_mem_offset;
 
-#define MAIN_LO   0x00010000u
+#define MAIN_LO   0x00000000u
 #define MAIN_HI   0x04000000u
+#define GDT_ADDR  0xFFFF0000u
 #define CONT_LO   0x80000000u
 #define CONT_HI   0x84000000u
 #define MAIN_SIZE (MAIN_HI - MAIN_LO)
@@ -122,6 +124,29 @@ static void on_write(uc_engine *uc, uc_mem_type type, uint64_t addr, int size, i
     }
 }
 
+/* where the emulated code went that we have not mapped (for tuning) */
+static uint32_t s_unmapped_hist[64][2];
+static int s_unmapped_n;
+static bool on_unmapped(uc_engine *uc, uc_mem_type type, uint64_t addr, int size, int64_t value, void *ud)
+{
+    uint32_t pg = (uint32_t)addr & 0xFFFF0000u;
+    (void)size; (void)value; (void)ud;
+    {
+        static int shown;
+        if (shown < 12 && type != UC_MEM_FETCH_UNMAPPED && getenv("RECOMP_SHADOW_VERBOSE")) {
+            uint32_t eip = 0, esp = 0;
+            uc_reg_read(uc, UC_X86_REG_EIP, &eip);
+            uc_reg_read(uc, UC_X86_REG_ESP, &esp);
+            shown++;
+            fprintf(stderr, "[SHADOW] unmapped type=%d addr=%08X eip=%08X esp=%08X\n", (int)type, (uint32_t)addr, eip, esp);
+        }
+    }
+    for (int i = 0; i < s_unmapped_n; i++)
+        if (s_unmapped_hist[i][0] == (pg | (uint32_t)type)) { s_unmapped_hist[i][1]++; return false; }
+    if (s_unmapped_n < 64) { s_unmapped_hist[s_unmapped_n][0] = pg | (uint32_t)type; s_unmapped_hist[s_unmapped_n++][1] = 1; }
+    return false;
+}
+
 static int shadow_init(void)
 {
     const char *e;
@@ -154,7 +179,13 @@ static int shadow_init(void)
     if (err == UC_ERR_OK)
         err = uc_mem_map_ptr(s_uc, CONT_LO, CONT_SIZE, UC_PROT_READ | UC_PROT_WRITE, s_uc_cont);
     if (err == UC_ERR_OK)
+        err = uc_mem_map(s_uc, GDT_ADDR, 0x10000, UC_PROT_READ | UC_PROT_WRITE);
+    if (err == UC_ERR_OK)
         err = uc_hook_add(s_uc, &hh, UC_HOOK_MEM_WRITE, (void *)on_write, NULL, 1, 0);
+    if (err == UC_ERR_OK) {
+        uc_hook hu;
+        err = uc_hook_add(s_uc, &hu, UC_HOOK_MEM_UNMAPPED, (void *)on_unmapped, NULL, 1, 0);
+    }
     if (err != UC_ERR_OK) { fprintf(stderr, "[SHADOW] unicorn setup: %s\n", uc_strerror(err)); return 0; }
 
     fprintf(stderr, "[SHADOW] on: %u call(s) per function; readable pages: main %u of %u, contiguous %u of %u\n",
@@ -223,9 +254,26 @@ static void run_original(uint32_t va, Original *o)
     UCW(UC_X86_REG_EBP, ebp0); UCW(UC_X86_REG_ESP, esp0);
     UCW(UC_X86_REG_EFLAGS, 0x202u | (g_df ? 0x400u : 0u));
     uc_reg_write(s_uc, UC_X86_REG_FPCW, &cw);
+    {   /* fs: the guest thread's TIB, as the translation addresses it.
+         * In 32-bit mode a segment base comes from a descriptor, so fs
+         * gets its own GDT entry (index 1) with that base. */
+        uint32_t base = g_fs_base;
+        uint8_t desc[8];
+        uint32_t limit = 0xFFFFF;
+        desc[0] = limit & 0xFF; desc[1] = (limit >> 8) & 0xFF;
+        desc[2] = base & 0xFF; desc[3] = (base >> 8) & 0xFF; desc[4] = (base >> 16) & 0xFF;
+        desc[5] = 0x92;                              /* present, data, read/write, DPL 0 */
+        desc[6] = 0xC0 | ((limit >> 16) & 0x0F);    /* 4 KB granularity, 32-bit */
+        desc[7] = (base >> 24) & 0xFF;
+        uc_mem_write(s_uc, GDT_ADDR + 8, desc, 8);
+        uc_x86_mmr gdtr = { 0, GDT_ADDR, 0x1F, 0 };
+        uc_reg_write(s_uc, UC_X86_REG_GDTR, &gdtr);
+        uint32_t sel = 1 << 3;
+        uc_reg_write(s_uc, UC_X86_REG_FS, &sel);
+    }
     for (int i = 0; i < 8; i++) uc_reg_write(s_uc, UC_X86_REG_XMM0 + i, &x[i]);
 
-    o->err = uc_emu_start(s_uc, va, retaddr, 3000000, 4000000);
+    o->err = uc_emu_start(s_uc, va, retaddr, 500000, 500000);
     uc_reg_read(s_uc, UC_X86_REG_EIP, &eip);
     uc_reg_read(s_uc, UC_X86_REG_EAX, &o->eax);
     uc_reg_read(s_uc, UC_X86_REG_ESP, &o->esp);
@@ -276,6 +324,41 @@ void recomp_shadow_call(uint32_t va, void (*impl)(void))
         }
     }
     if (!s_on || (s_only >= 0 && (uint32_t)s_only != va)) { impl(); return; }
+    {   /* RECOMP_SHADOW_LO/HI: only functions in [lo, hi); RECOMP_SHADOW_GATE=<file>: only while it exists */
+        static uint32_t lo = 1, hi;
+        static const char *gate;
+        static unsigned gate_n;
+        static int gate_open;
+        if (lo == 1) {
+            const char *e;
+            lo = (e = getenv("RECOMP_SHADOW_LO")) ? (uint32_t)strtoul(e, NULL, 16) : 0;
+            hi = (e = getenv("RECOMP_SHADOW_HI")) ? (uint32_t)strtoul(e, NULL, 16) : 0xFFFFFFFFu;
+            gate = getenv("RECOMP_SHADOW_GATE");
+        }
+        if (va < lo || va >= hi) { impl(); return; }
+        if (gate) {
+            if ((gate_n++ & 1023) == 0) {
+                FILE *g = fopen(gate, "r");
+                gate_open = g != NULL;
+                if (g) fclose(g);
+            }
+            if (!gate_open) { impl(); return; }
+        }
+    }
+    {   /* RECOMP_SHADOW_AFTER=<seconds>: start checking only then (boot and menus at full speed) */
+        static double start = -1;
+        static struct timespec t0;
+        struct timespec tn;
+        if (start < 0) {
+            const char *e = getenv("RECOMP_SHADOW_AFTER");
+            start = e ? atof(e) : 0;
+            clock_gettime(CLOCK_MONOTONIC, &t0);
+        }
+        if (start > 0) {
+            clock_gettime(CLOCK_MONOTONIC, &tn);
+            if ((tn.tv_sec - t0.tv_sec) + (tn.tv_nsec - t0.tv_nsec) / 1e9 < start) { impl(); return; }
+        }
+    }
     s_n_calls++;
     if (pthread_mutex_trylock(&s_lock) != 0) { impl(); return; }
     sl = slot_for(va);
@@ -354,6 +437,8 @@ void recomp_shadow_call(uint32_t va, void (*impl)(void))
             fprintf(stderr, "[SHADOW] progress: %u checks: %lu identical, %lu DIFFERENT, %lu skipped(memory/kernel) %lu skipped(other); uc errors:",
                     finished, s_n_ok, s_n_diff, s_n_skip_mem, s_n_skip_other);
             for (int i = 0; i < 16; i++) if (s_skip_reasons[i]) fprintf(stderr, " %d=%u", i, s_skip_reasons[i]);
+            fprintf(stderr, "\n[SHADOW] unmapped (64K page|type:count):");
+            for (int i = 0; i < s_unmapped_n; i++) fprintf(stderr, " %08X:%u", s_unmapped_hist[i][0], s_unmapped_hist[i][1]);
             fprintf(stderr, "\n");
         }
     }
