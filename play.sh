@@ -43,6 +43,9 @@ fi
 [ -n "$ASPECT" ] && export RECOMP_ASPECT="$ASPECT"
 export RECOMP_SCALE="${SCALE:-2}"
 # RECOMP_KEYBOARD=0: the window reads the keys; the terminal reader is not needed.
-exec env RECOMP_XEMU_GPU=1 RECOMP_VBLANK=1 RECOMP_AC97_READY=1 RECOMP_PB_EXEC=1 \
+# The last three are diagnostics that cost nothing and make last-run.log explain
+# a hang: menu action names, a dump of every thread if no frame is presented for
+# 30 s, and one line whenever the pad state the game reads changes.
+exec env RECOMP_MENULOG=1 RECOMP_HANG_DUMP=1 RECOMP_XINLOG=1 RECOMP_XEMU_GPU=1 RECOMP_VBLANK=1 RECOMP_AC97_READY=1 RECOMP_PB_EXEC=1 \
          RECOMP_FB_WINDOW=1 RECOMP_KEYBOARD=0 \
     ./black-recomp "$GAME" 2> last-run.log

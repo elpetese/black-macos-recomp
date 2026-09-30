@@ -106,7 +106,7 @@ void sub_0027DD29(void)
         MEM32(XIN_TYPE_GAMEPAD + 4) = 0;
         MEM32(XIN_TYPE_GAMEPAD + 8) = 1;
     }
-    if (xin_log())
+    if (xin_log() && in)
         fprintf(stderr, "[XIN] XGetDeviceChanges type=%08X -> in=%u\n", type, in);
     if (ins) MEM32(ins) = in;
     if (rem) MEM32(rem) = 0;
@@ -143,9 +143,21 @@ void sub_0027DDF8(void)
     /* Not connected until the first key or click: an idle pad, not a
      * missing one, so the title does not ask for a controller. */
     xbox_InputGetState(0, &s);
-    if (xin_log() && (s.wButtons || s.bAnalogButtons[0] || s.sThumbLY))
-        fprintf(stderr, "[XIN] GetState out=%08X buttons=%04X A=%u LY=%d\n",
-                out, s.wButtons, s.bAnalogButtons[0], s.sThumbLY);
+    if (xin_log()) {   /* one line per CHANGE of what the pad reports */
+        static uint16_t lb; static uint8_t la[8]; static int16_t llx, lly, lrx, lry;
+        if (s.wButtons != lb || memcmp(s.bAnalogButtons, la, 8) != 0 ||
+            (s.sThumbLX != 0) != (llx != 0) || (s.sThumbLY != 0) != (lly != 0) ||
+            (s.sThumbRX != 0) != (lrx != 0) || (s.sThumbRY != 0) != (lry != 0)) {
+            fprintf(stderr, "[XIN] pad: buttons=%04X A=%u B=%u X=%u Y=%u blk=%u wht=%u LT=%u RT=%u"
+                            " L=(%d,%d) R=(%d,%d)\n", s.wButtons,
+                    s.bAnalogButtons[0], s.bAnalogButtons[1], s.bAnalogButtons[2],
+                    s.bAnalogButtons[3], s.bAnalogButtons[4], s.bAnalogButtons[5],
+                    s.bAnalogButtons[6], s.bAnalogButtons[7],
+                    s.sThumbLX, s.sThumbLY, s.sThumbRX, s.sThumbRY);
+            lb = s.wButtons; memcpy(la, s.bAnalogButtons, 8);
+            llx = s.sThumbLX; lly = s.sThumbLY; lrx = s.sThumbRX; lry = s.sThumbRY;
+        }
+    }
     MEM32(out) = ++packet;
     MEM16(out + 4) = s.wButtons;
     for (int i = 0; i < 8; i++)
