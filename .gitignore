@@ -10,3 +10,5 @@ src/recomp/gen.new/
 *.log
 /evidence-live/
 /evidence/
+/src/recomp/gen-shadow/
+/build-shadow/

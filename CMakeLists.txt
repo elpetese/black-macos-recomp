@@ -15,7 +15,13 @@ set(XBOXRECOMP_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../xboxrecomp" CACHE PATH
 
 add_subdirectory(${XBOXRECOMP_DIR} ${CMAKE_BINARY_DIR}/xboxrecomp)
 
-file(GLOB RECOMP_GEN_SOURCES CONFIGURE_DEPENDS "src/recomp/gen/*.c")
+option(BLACK_SHADOW "Wrap every translated function for the differential check against Unicorn (src/shadow.c)" OFF)
+if(BLACK_SHADOW)
+    set(BLACK_GEN_DIR "src/recomp/gen-shadow")
+else()
+    set(BLACK_GEN_DIR "src/recomp/gen")
+endif()
+file(GLOB RECOMP_GEN_SOURCES CONFIGURE_DEPENDS "${BLACK_GEN_DIR}/*.c")
 
 set(GAME_SOURCES
     src/main_posix.c
@@ -36,7 +42,7 @@ endif()
 
 target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/recomp/gen
+    ${CMAKE_CURRENT_SOURCE_DIR}/${BLACK_GEN_DIR}
     ${XBOXRECOMP_DIR}/include
 )
 
@@ -54,4 +60,10 @@ if(MSVC)
     target_compile_options(${PROJECT_NAME} PRIVATE /bigobj)
 else()
     target_compile_options(${PROJECT_NAME} PRIVATE -Wall -Wextra -O2)
+endif()
+
+if(BLACK_SHADOW)
+    target_sources(${PROJECT_NAME} PRIVATE src/shadow.c)
+    target_include_directories(${PROJECT_NAME} PRIVATE /opt/homebrew/include)
+    target_link_libraries(${PROJECT_NAME} PRIVATE /opt/homebrew/lib/libunicorn.dylib)
 endif()
