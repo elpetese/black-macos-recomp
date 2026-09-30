@@ -2,17 +2,17 @@
 # Run Black and play it yourself (keyboard + mouse in the game window).
 #   ./play.sh                 normal
 #   RECOMP_MOUSE_SENS=800 ./play.sh    slower mouse look (default 1800)
-#   FULLSCREEN=1 ./play.sh    start full screen (Cmd+Return toggles it any time;
-#                             the picture keeps 4:3 with black bars)
-#   WINDOW=900 ./play.sh      window height in points (default: 1080, or the
-#                             largest 4:3 that fits the screen)
-#   ASPECT=4:3 ./play.sh      picture shape (default 16:9: the 4:3 game image is
-#                             stretched to fill a widescreen; 4:3 = original)
-#   SCALE=1 ./play.sh         internal resolution: default 2 (1280x960, sharp and
-#                             as fast as 1). 3 (1920x1440) froze the game when
-#                             the level loaded, so it is experimental.
-#   FOV=90 ./play.sh          field of view in degrees (the game's own is 70;
-#                             aiming zoom stays proportional)
+#   (default: full screen; Cmd+Return toggles it any time)
+#   WINDOWED=1 ./play.sh      start in a window instead
+#   WINDOW=900 ./play.sh      window height in points (with WINDOWED=1)
+#   ASPECT=4:3 ./play.sh      picture shape (default 16:9, the game renders
+#                             widescreen; 4:3 = with side bars)
+#   SCALE=2 ./play.sh         internal resolution: default 3 (1920x1440);
+#                             2 = 1280x960 if the level load ever freezes
+#   FOV=70 ./play.sh          field of view in degrees (default 90; the
+#                             original game uses 70; aiming zoom stays
+#                             proportional)
+#   AA=0 ./play.sh            no FXAA edge smoothing (on by default)
 #   FILTER=nearest ./play.sh  hard pixels instead of smooth scaling
 #   FAST=1 ./play.sh          cut every movie (logos, credits, mission
 #                             cinematic) to its header + 3 packets, so the first
@@ -29,7 +29,7 @@ GAME="${BLACK_GAME_DIR:-/path/to/project/black/extracted/Black (USA).xiso}"
 
 echo "Black arrancando. Ventana del juego: dale foco y usa el teclado."
 echo "Enter = Start (título)   Espacio = aceptar   flechas = menús   Tab = atrás"
-echo "Pantalla completa: Cmd+Intro (o el botón verde). Mantiene 4:3 con barras negras."
+echo "Pantalla completa por defecto (Cmd+Intro alterna). WINDOWED=1 para ventana."
 echo "En el nivel: WASD mover, ratón o IJKL mirar, clic izq. disparar, clic der. apuntar, Esc suelta el ratón."
 [ -n "$FAST" ] && echo "MODO RÁPIDO: vídeos recortados (FAST=$FAST). Sin FAST se reproducen completos."
 echo "Ctrl+C aquí cierra el juego. Log: $HERE/build-mac/last-run.log"
@@ -39,12 +39,13 @@ cd "$HERE/build-mac"
 if [ -n "$FAST" ]; then
     case "$FAST" in ''|*[!0-9]*|0|1) export RECOMP_XMV_PACKETS=3 ;; *) export RECOMP_XMV_PACKETS="$FAST" ;; esac
 fi
-[ -n "$FULLSCREEN" ] && export RECOMP_FULLSCREEN=1
+[ -z "$WINDOWED" ] && export RECOMP_FULLSCREEN=1
 [ -n "$WINDOW" ] && export RECOMP_WINDOW="$WINDOW"
 [ -n "$FILTER" ] && export RECOMP_FILTER="$FILTER"
 [ -n "$ASPECT" ] && export RECOMP_ASPECT="$ASPECT"
-[ -n "$FOV" ] && export RECOMP_FOV="$FOV"
-export RECOMP_SCALE="${SCALE:-2}"
+export RECOMP_SCALE="${SCALE:-3}"
+export RECOMP_FOV="${FOV:-90}"
+[ -n "$AA" ] && export RECOMP_AA="$AA"
 # RECOMP_KEYBOARD=0: the window reads the keys; the terminal reader is not needed.
 # The last three are diagnostics that cost nothing and make last-run.log explain
 # a hang: menu action names, a dump of every thread if no frame is presented for
