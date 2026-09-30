@@ -1,0 +1,155 @@
+# black-recomp
+
+Static recompilation port of **Black** (Xbox, 2006) to macOS on Apple Silicon.
+
+The game's x86 code is translated function-by-function to C and compiled
+natively for arm64. The Xbox kernel, GPU (NV2A) and audio (MCPX APU) are
+replaced by the runtime in the `xboxrecomp` toolkit, which is a required
+sibling checkout. Nothing here emulates a CPU.
+
+**No game code or assets are in this repository.** You must supply your own
+legally obtained copy of the disc. Nothing of the game's is committed, in this
+tree or in its history; `.gitignore` keeps `game_files/`, `*.xbe`, `*.iso`,
+`*.xiso`, the build directory and the evidence screenshots out.
+
+## Status
+
+Boots to the title screen, plays the intro videos, reaches the first mission
+and is playable: move, aim, shoot, reload, objectives. Rendering goes through
+the NV2A renderer of xemu extracted from QEMU. The boot is still unstable
+during video playback (about one run in three), camera drift after firing is
+unresolved, and audio is silent because the APU's DSP56300 GP/EP is a stub.
+
+The port's running notes live in the toolkit repository, in
+`black-port-progreso-ajustado.md` and `BLACK_PORT_ESTADO_2026-09-19.md`.
+
+## Layout
+
+| Path | What it is |
+|---|---|
+| `src/main_posix.c` | Host: boot, XBE load, window, framebuffer present, crash handler |
+| `src/recomp_natives.c` | Guest functions written by hand instead of translated |
+| `src/recomp_manual.c` | Function-name lookup for the `[MENU]` log, ICALL and UNIMPL diagnostics |
+| `src/shadow.c` | Optional differential check against the original x86 (`-DBLACK_SHADOW=ON`) |
+| `seeds/hand_seeds.json` | Functions only reachable through pointers, which the analysis cannot find |
+| `tools/shadow_wrap.py` | Generator wrapper for the shadow build |
+| `play.sh` | Run it |
+| `evidence.sh` | Screenshot and pad-state recording |
+
+`src/recomp/gen/` is **generated** and not committed. Regenerate it from the
+toolkit; see `REGENERATE.md`. Without it the project will not build.
+
+## Build
+
+Needs a sibling `../xboxrecomp` checkout, plus SDL3, glib, epoxy and
+libxxhash via pkg-config. On macOS, CMake and clang from Xcode are enough.
+
+```sh
+git clone https://github.com/elpetese/black-macos-recomp.git
+git clone https://github.com/elpetese/black-macos-runtime.git    # the toolkit
+git -C black-macos-runtime submodule update --init --recursive
+
+cd black-macos-recomp
+cmake -S . -B build-mac -DCMAKE_BUILD_TYPE=Release
+cmake --build build-mac --target black-recomp -j8
+```
+
+`CMakeLists.txt` looks for the toolkit at `../xboxrecomp`; point
+`-DXBOXRECOMP_DIR=` elsewhere if you keep it somewhere else.
+
+## Run
+
+```sh
+./play.sh                 # full screen, keyboard and mouse
+FAST=1 ./play.sh          # cut the videos; first level in ~1.5 min instead of ~7
+WINDOWED=1 ./play.sh       # start in a window
+SCALE=2 ./play.sh         # 1280x960 if the level load ever freezes
+ASPECT=4:3 ./play.sh      # the game renders widescreen; 4:3 adds side bars
+FOV=70 ./play.sh          # the original uses 70 (default here is 90)
+```
+
+`play.sh` needs the game directory. It defaults to
+`/path/to/project/black/extracted/Black (USA).xiso`; override with
+`BLACK_GAME_DIR=<folder containing default.xbe>`. The log of the run goes to
+`build-mac/last-run.log`.
+
+## Controls
+
+The game window needs focus.
+
+| Key | Xbox pad | In Black |
+|---|---|---|
+| Enter | Start | Start, pause |
+| Space | A | Accept |
+| Tab | Back | Back |
+| X | B | Cancel |
+| Q | X | Reload |
+| E | Y | Change weapon |
+| Arrows | D-pad | Menus |
+| W A S D | Left stick | Move |
+| I J K L or mouse | Right stick | Aim |
+| Left click | Left trigger | Fire |
+| Right click | Right trigger | Aim down sights |
+| F / H | Stick clicks | Crouch / melee |
+| V / C | Triggers | Fire / aim |
+| 1 / 2 | White / Black | Grenades |
+| Cmd+Return | | Toggle full screen |
+
+To play: Enter on the title, Space on START MISSION, NORMAL, the mission
+briefing, then wait for "RENDEZVOUS WITH BLACK CELL" (about 40 s after the
+level loads; the game ignores the pad before that).
+
+## Environment variables
+
+Set by `play.sh`; useful on their own for diagnosing a hang.
+
+| Variable | What it does |
+|---|---|
+| `RECOMP_VBLANK=1` | **Required.** Without it the title waits for the NV2A interrupt forever |
+| `RECOMP_AC97_READY=1` | AC'97 codec, DSP ACK thread, D3D pushbuffer fence. Without it the boot dies at `sub_00084F90` after 19 file opens instead of 52 |
+| `RECOMP_XEMU_GPU=1` | The xemu NV2A renderer |
+| `RECOMP_PB_EXEC=1` | Pushbuffer executor |
+| `RECOMP_FB_WINDOW=1` | Framebuffer window |
+| `RECOMP_USB=1` | Emulated OHCI, for the title's own USB stack |
+| `RECOMP_AUDIO_TEST=1` | 440 Hz test tone through the APU |
+| `RECOMP_AUDIOLOG=1` | Audio flow every 2 s: buffers, drops, underruns |
+| `RECOMP_AUDIO_DUMP=<f>` | Every submitted buffer to a file, s16 stereo 48 kHz |
+| `RECOMP_HANG_DUMP=<s>` | If no frame is presented for s seconds, dump every thread |
+| `RECOMP_MENULOG=1` | Name the menu actions the front end dispatches |
+| `RECOMP_XINLOG=1` | One line whenever the pad state the game reads changes |
+| `RECOMP_DRAWDUMP=1` | Per-flip draw dumps (touch `/tmp/black_dump` for the next frame) |
+| `RECOMP_FB_SNAP=<dir>/` | One screenshot per second |
+| `RECOMP_KEEP_BLACK_PANEL=1` | Draw the opaque black panel the menus ask for; off by default, the filter that hides it is in `main_posix.c` |
+| `RECOMP_FOV=<deg>` | Field of view |
+| `RECOMP_XEMU_DRAWLOG=L<n>` | Draw log for the n-th frame with more than 300 draws |
+
+## Known issues
+
+- **Boot instability during videos** (high). About one run in three crashes or
+  hangs before the menu: a crash in `sub_0013DD20` reaching `0x9xxxxxxx` when an
+  XMV video ends, a main-loop crash with the stack overwritten, or a hang at
+  ~37 s. Run with `RECOMP_HANG_DUMP`; several of the FPU-precision,
+  per-thread dispatch and IRQL fixes made later may already reduce it.
+- **Camera drifts to the floor** (high), after firing. Ruled out: the pad
+  reports correct axes. The weapon-recoil recovery is overshooting.
+- **Video quality** (medium). Heavy blocking; may be another SSE/MMX case in the
+  recompiler.
+- **Black panel and collapsed menu text** (medium). The filter in `main_posix.c`
+  hides the panel, but the title's own menu logic is what asks for it, and it
+  also collapses some text to a point. The pause menu is invisible because of it.
+- **PS4 controller** (medium). SDL sees 0 joysticks; needs the SDL input
+  subsystem and Input Monitoring permission on macOS.
+- **Audio** (unresolved). The pipeline reaches SDL2 but the APU's DSP56300
+  GP/EP is a stub, so the game's own mix never reaches the output. A real
+  GP/EP exists in the toolkit behind `RECOMP_REAL_DSP=1`.
+
+## Credits
+
+- [sp00nznet/xboxrecomp](https://github.com/sp00nznet/xboxrecomp) — the
+  toolkit this is built on, MIT, Copyright (c) 2026 sp00nz
+- [xemu](https://github.com/xemu-project/xemu) — the MCPX APU and NV2A
+  renderer, LGPL-2.1, Copyright (c) 2012 espes, 2018-2019 Jannik Vogel,
+  2019-2025 Matt Borgerson
+- [mborgerson/dsp56300](https://github.com/mborgerson/dsp56300) — DSP56300
+  interpreter and JIT, MIT
+- Ubisoft / Southend Interactive — *Black*. Not affiliated; no assets here.
