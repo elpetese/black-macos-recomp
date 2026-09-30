@@ -11,6 +11,8 @@
 #   SCALE=1 ./play.sh         internal resolution: default 2 (1280x960, sharp and
 #                             as fast as 1). 3 (1920x1440) froze the game when
 #                             the level loaded, so it is experimental.
+#   FOV=90 ./play.sh          field of view in degrees (the game's own is 70;
+#                             aiming zoom stays proportional)
 #   FILTER=nearest ./play.sh  hard pixels instead of smooth scaling
 #   FAST=1 ./play.sh          cut every movie (logos, credits, mission
 #                             cinematic) to its header + 3 packets, so the first
@@ -41,6 +43,7 @@ fi
 [ -n "$WINDOW" ] && export RECOMP_WINDOW="$WINDOW"
 [ -n "$FILTER" ] && export RECOMP_FILTER="$FILTER"
 [ -n "$ASPECT" ] && export RECOMP_ASPECT="$ASPECT"
+[ -n "$FOV" ] && export RECOMP_FOV="$FOV"
 export RECOMP_SCALE="${SCALE:-2}"
 # RECOMP_KEYBOARD=0: the window reads the keys; the terminal reader is not needed.
 # The last three are diagnostics that cost nothing and make last-run.log explain

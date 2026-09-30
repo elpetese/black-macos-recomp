@@ -26,6 +26,7 @@
 #include <sys/mman.h>
 #include <pthread.h>
 #include <time.h>
+#include <math.h>
 #if defined(__APPLE__)
 #include <mach/mach.h>     /* arm_thread_state64_get_pc */
 #endif
@@ -99,6 +100,12 @@ static void crash_handler(int sig, siginfo_t *si, void *uctx)
     uintptr_t fault = (uintptr_t)si->si_addr;
     uintptr_t pc    = host_pc(uctx);
     uintptr_t off   = (uintptr_t)g_xbox_mem_offset;
+
+    {   /* A store to write-tracked GPU memory: mark the page and retry. */
+        extern int xbox_dirty_fault(uintptr_t fault_addr);
+        if (xbox_dirty_fault(fault))
+            return;
+    }
 
     /* Intercepted MCPX registers fault on purpose; resume once emulated. */
     if (xbox_mcpx_mmio_fault(uctx, fault))
@@ -495,6 +502,23 @@ int main(int argc, char **argv)
      * field, never started a video. Alternate it from the vblank clock. */
     xbox_Nv2aFieldParity(0x0027BFF8u, 0x1DF8u);
 
+    /* RECOMP_FOV=<degrees>: the camera's field of view. Black builds its
+     * projection from tan(fov/2) at two fptan sites (sub_000D2F40 at
+     * 0x000D3052, sub_002033A0 at 0x002034AF), fov being 70 (0x2888C8) or
+     * 70/zoom while aiming. Scaling the tangent there keeps the zoom
+     * proportional and leaves every other use of that constant alone. */
+    {
+        const char *fov = getenv("RECOMP_FOV");
+        double deg = fov ? atof(fov) : 0.0;
+        if (deg >= 30.0 && deg <= 150.0) {
+            extern void recomp_fptan_scale(uint32_t va, double factor);
+            double k = tan(deg * 0.5 * M_PI / 180.0) / tan(35.0 * M_PI / 180.0);
+            recomp_fptan_scale(0x000D3052u, k);
+            recomp_fptan_scale(0x002034AFu, k);
+            fprintf(stderr, "[FOV] %.0f degrees (tan x%.3f)\n", deg, k);
+        }
+    }
+
     {
         extern void xbox_PbSetInlineFilter(void (*fn)(uint32_t, uint32_t *, uint32_t));
         if (getenv("RECOMP_PANEL_PROBE"))
@@ -521,6 +545,18 @@ int main(int argc, char **argv)
                    64u * 1024u * 1024u,
                    (uint8_t *)(uintptr_t)(g_xbox_mem_offset + 0xFD000000u));
         fprintf(stderr, "[BOOT] xemu NV2A renderer initialised\n");
+    }
+    /* RECOMP_DIRTY_TRACKING=1: write-track the GPU memory window so xemu re-hashes
+     * and re-uploads only the textures and vertex data the guest actually
+     * changed, instead of every one at every draw. Writes to the (read-only)
+     * pages fault; the fault handler below marks the page and lets the store
+     * through. The tiled aperture is another view of the same pages. */
+    if (getenv("RECOMP_XEMU_GPU") && getenv("RECOMP_DIRTY_TRACKING")) {
+        extern void xbox_dirty_arm(void *host_base, size_t size);
+        extern void xbox_dirty_add_alias(const void *host_base, void *alias_base);
+        uint8_t *vram = (uint8_t *)(uintptr_t)(g_xbox_mem_offset + 0x80000000u);
+        xbox_dirty_arm(vram, 64u * 1024u * 1024u);
+        xbox_dirty_add_alias(vram, (void *)(uintptr_t)(g_xbox_mem_offset + 0xF0000000u));
     }
 #endif
 
