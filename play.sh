@@ -12,6 +12,9 @@
 #   FOV=70 ./play.sh          field of view in degrees (default 90; the
 #                             original game uses 70; aiming zoom stays
 #                             proportional)
+#   FASTGPU=1 ./play.sh       EXPERIMENTAL, off by default: GPU dirty tracking and no
+#                             per-flip surface readback (+20% fps, not verified in
+#                             effect-heavy scenes; turn it off if the picture is wrong)
 #   AA=0 ./play.sh            no FXAA edge smoothing (on by default)
 #   FILTER=nearest ./play.sh  hard pixels instead of smooth scaling
 #   FAST=1 ./play.sh          cut every movie (logos, credits, mission
@@ -43,6 +46,7 @@ fi
 [ -n "$WINDOW" ] && export RECOMP_WINDOW="$WINDOW"
 [ -n "$FILTER" ] && export RECOMP_FILTER="$FILTER"
 [ -n "$ASPECT" ] && export RECOMP_ASPECT="$ASPECT"
+[ -n "$FASTGPU" ] && export RECOMP_NO_FLIP_DOWNLOAD=1 RECOMP_DIRTY_TRACKING=1
 export RECOMP_SCALE="${SCALE:-3}"
 export RECOMP_FOV="${FOV:-90}"
 [ -n "$AA" ] && export RECOMP_AA="$AA"
@@ -50,6 +54,6 @@ export RECOMP_FOV="${FOV:-90}"
 # The last three are diagnostics that cost nothing and make last-run.log explain
 # a hang: menu action names, a dump of every thread if no frame is presented for
 # 30 s, and one line whenever the pad state the game reads changes.
-exec env RECOMP_NO_FLIP_DOWNLOAD=1 RECOMP_DIRTY_TRACKING=1 RECOMP_FPSLOG=1 RECOMP_MENULOG=1 RECOMP_HANG_DUMP=1 RECOMP_XINLOG=1 RECOMP_XEMU_GPU=1 RECOMP_VBLANK=1 RECOMP_AC97_READY=1 RECOMP_PB_EXEC=1 \
+exec env RECOMP_FPSLOG=1 RECOMP_MENULOG=1 RECOMP_HANG_DUMP=1 RECOMP_XINLOG=1 RECOMP_XEMU_GPU=1 RECOMP_VBLANK=1 RECOMP_AC97_READY=1 RECOMP_PB_EXEC=1 \
          RECOMP_FB_WINDOW=1 RECOMP_KEYBOARD=0 \
     ./black-recomp "$GAME" 2> last-run.log
