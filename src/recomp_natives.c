@@ -70,6 +70,14 @@ typedef struct {
 } xin_state_t;                               /* = XBOX_INPUT_STATE */
 extern uint32_t xbox_InputGetState(uint32_t port, xin_state_t *state);
 
+#include <time.h>
+static double xin_now(void)
+{
+    struct timespec ts;
+    clock_gettime(CLOCK_REALTIME, &ts);
+    return (double)ts.tv_sec + ts.tv_nsec / 1e9;
+}
+
 static int xin_log(void)
 {
     static int v = -1;
@@ -148,8 +156,8 @@ void sub_0027DDF8(void)
         if (s.wButtons != lb || memcmp(s.bAnalogButtons, la, 8) != 0 ||
             (s.sThumbLX != 0) != (llx != 0) || (s.sThumbLY != 0) != (lly != 0) ||
             (s.sThumbRX != 0) != (lrx != 0) || (s.sThumbRY != 0) != (lry != 0)) {
-            fprintf(stderr, "[XIN] pad: buttons=%04X A=%u B=%u X=%u Y=%u blk=%u wht=%u LT=%u RT=%u"
-                            " L=(%d,%d) R=(%d,%d)\n", s.wButtons,
+            fprintf(stderr, "[XIN] t=%.3f pad: buttons=%04X A=%u B=%u X=%u Y=%u blk=%u wht=%u LT=%u RT=%u"
+                            " L=(%d,%d) R=(%d,%d)\n", xin_now(), s.wButtons,
                     s.bAnalogButtons[0], s.bAnalogButtons[1], s.bAnalogButtons[2],
                     s.bAnalogButtons[3], s.bAnalogButtons[4], s.bAnalogButtons[5],
                     s.bAnalogButtons[6], s.bAnalogButtons[7],

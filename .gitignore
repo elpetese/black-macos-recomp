@@ -8,3 +8,5 @@ src/recomp/gen.new/
 ._*
 .DS_Store
 *.log
+/evidence-live/
+/evidence/
