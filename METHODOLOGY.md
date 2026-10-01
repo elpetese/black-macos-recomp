@@ -63,8 +63,7 @@ cd black-macos-recomp
    `src/recomp/gen/` (local, git-ignored, ~1.5M lines, ~1 min).
 4. **Build** with CMake into `build-mac/`.
 
-Metal/ANGLE build: add `-DXEMU_ANGLE_LIB_DIR=/path/to/angle/libs` and use
-`-B build-angle` (see README).
+Faster Metal (ANGLE) build: see section 9.
 
 ## 4. Where the analysis data comes from (to redo it yourself)
 
@@ -119,3 +118,58 @@ prefer fixing the runtime/lifter over per-game hacks.
 `*.iso`, `*.xiso`, `*.xbe`, `game_files/`, `src/recomp/gen*/` (derived from the
 game's code), screenshots/evidence dumps and crash logs. `.gitignore` covers
 these.
+
+## 9. Faster renderer: build ANGLE (Metal backend)
+
+The default build uses desktop OpenGL (~15 fps in level 1 at 1920x1440). The
+ANGLE build runs the same xemu renderer on OpenGL ES translated to Metal by
+Google's ANGLE (~30 fps). ANGLE is not in this repository (it is large and has
+its own licence); build it once and point CMake at the two libraries.
+
+Tools: Xcode command line tools, Python 3, git, ~10 GB free disk, ~30-60 min.
+
+```sh
+# 1. depot_tools (Chromium's build tooling)
+git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git
+export PATH="$PWD/depot_tools:$PATH"
+
+# 2. ANGLE source
+mkdir angle && cd angle
+fetch angle            # or: gclient config + sync, per ANGLE's docs/DevSetup.md
+cd angle
+
+# 3. Configure: arm64, Metal backend only, release
+gn gen out/Release --args='target_cpu="arm64" is_debug=false is_component_build=false angle_enable_metal=true angle_enable_gl=false angle_enable_vulkan=false angle_enable_swiftshader=false'
+
+# 4. Build the two libraries the port needs
+autoninja -C out/Release libEGL libGLESv2
+ls out/Release/libEGL.dylib out/Release/libGLESv2.dylib
+```
+
+Then build the port against them:
+
+```sh
+cd ../../black-macos-recomp
+cmake -S . -B build-angle -DCMAKE_BUILD_TYPE=Release \
+      -DXEMU_ANGLE_LIB_DIR=/full/path/to/angle/angle/out/Release
+cmake --build build-angle --target black-recomp -j8
+./play.sh          # ANGLE=1 is the default; ANGLE=0 uses build-mac
+```
+
+CMake copies `libEGL.dylib` and `libGLESv2.dylib` next to the binary. The
+ANGLE headers the port compiles against are already in
+`xboxrecomp/third_party/angle_headers`.
+
+Notes:
+- Use ANGLE's own documented steps if the flags above have drifted
+  (`docs/DevSetup.md` and `docs/BuildingAngle` in the ANGLE tree). The
+  requirement is just: arm64 `libEGL.dylib` + `libGLESv2.dylib` with the Metal
+  backend enabled.
+- Do not copy the libraries out of someone else's app bundle and redistribute
+  them; build your own or keep them local. They are git-ignored here.
+- Verify it is ANGLE/Metal at run time: `build-angle/last-run.log` should
+  show the ANGLE/EGL context being created. If the picture is wrong, try
+  `FASTGPU=0 ./play.sh`.
+- These ANGLE steps are the standard ANGLE procedure; they have not been
+  re-run from scratch for this repo (the author's libraries came from a
+  prebuilt copy).

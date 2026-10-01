@@ -79,12 +79,12 @@ Full step-by-step reproduction (extract your disc, lift, build, debug): see [MET
 
 A second build runs xemu's renderer on OpenGL ES through ANGLE's Metal
 backend: about 30 fps in level 1 at the default scale, against about 15 for
-the OpenGL build. It needs a directory holding ANGLE's `libEGL.dylib` and
-`libGLESv2.dylib` (Metal backend); both are copied next to the binary.
+the OpenGL build. You build ANGLE yourself (it is not in this repo); the
+step-by-step is in [METHODOLOGY.md, section 9](METHODOLOGY.md#9-faster-renderer-build-angle-metal-backend).
 
 ```sh
 cmake -S . -B build-angle -DCMAKE_BUILD_TYPE=Release \
-      -DXEMU_ANGLE_LIB_DIR=/path/to/angle/libs
+      -DXEMU_ANGLE_LIB_DIR=/path/to/angle/out/Release
 cmake --build build-angle --target black-recomp -j8
 ./play.sh                 # ANGLE is the default; ANGLE=0 uses build-mac
 ```
