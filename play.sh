@@ -33,7 +33,7 @@ FAST="${FAST:-1}"
 BUILD=build-angle
 [ "$ANGLE" = 0 ] && ANGLE= && BUILD=build-mac
 BIN="$HERE/$BUILD/black-recomp"
-GAME="${BLACK_GAME_DIR:-/path/to/project/black/extracted/Black (USA).xiso}"
+GAME="${BLACK_GAME_DIR:-$HERE/game_files}"
 
 [ -x "$BIN" ]  || { echo "Falta $BIN. Compila primero: cmake --build \"$HERE/$BUILD\" --target black-recomp -j8"; exit 1; }
 [ -f "$GAME/default.xbe" ] || { echo "No encuentro $GAME/default.xbe (exporta BLACK_GAME_DIR=<carpeta del juego>)"; exit 1; }

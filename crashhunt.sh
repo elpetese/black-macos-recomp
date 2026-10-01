@@ -15,7 +15,7 @@
 set -e
 HERE="${0:A:h}"
 BIN="$HERE/build-mac/black-recomp"
-GAME="${BLACK_GAME_DIR:-/path/to/project/black/extracted/Black (USA).xiso}"
+GAME="${BLACK_GAME_DIR:-$HERE/game_files}"
 
 [ -x "$BIN" ]  || { echo "Falta $BIN. Compila:  cmake --build \"$HERE/build-mac\" --target black-recomp"; exit 1; }
 [ -f "$GAME/default.xbe" ] || { echo "No encuentro $GAME/default.xbe (exporta BLACK_GAME_DIR=<carpeta del juego>)"; exit 1; }

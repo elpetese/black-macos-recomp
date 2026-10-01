@@ -46,13 +46,15 @@ libxxhash via pkg-config. On macOS, CMake and clang from Xcode are enough.
 
 ```sh
 git clone https://github.com/elpetese/black-macos-recomp.git
-git clone https://github.com/elpetese/black-macos-runtime.git    # the toolkit
-git -C black-macos-runtime submodule update --init --recursive
+git clone https://github.com/elpetese/black-macos-runtime.git xboxrecomp   # the toolkit
+git -C xboxrecomp submodule update --init --recursive
 
 cd black-macos-recomp
 cmake -S . -B build-mac -DCMAKE_BUILD_TYPE=Release
 cmake --build build-mac --target black-recomp -j8
 ```
+
+Full step-by-step reproduction (extract your disc, lift, build, debug): see [METHODOLOGY.md](METHODOLOGY.md).
 
 `CMakeLists.txt` looks for the toolkit at `../xboxrecomp`; point
 `-DXBOXRECOMP_DIR=` elsewhere if you keep it somewhere else.
@@ -83,8 +85,7 @@ FOV=70 ./play.sh          # the original uses 70 (default here is 90)
 ANGLE=0 ./play.sh         # desktop OpenGL build (build-mac) instead of ANGLE
 ```
 
-`play.sh` needs the game directory. It defaults to
-`/path/to/project/black/extracted/Black (USA).xiso`; override with
+`play.sh` needs the game directory. It defaults to `./game_files`; see `METHODOLOGY.md` for the full reproduction steps. Override with
 `BLACK_GAME_DIR=<folder containing default.xbe>`. The log of the run goes to
 `build-angle/last-run.log` (`build-mac/` with `ANGLE=0`).
 
