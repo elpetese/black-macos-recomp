@@ -1,6 +1,6 @@
 #!/bin/zsh
 # Run Black and play it yourself (keyboard + mouse in the game window).
-#   ./play.sh                 normal
+#   ./play.sh                 Metal (ANGLE) build, short movies, 1920x1440
 #   RECOMP_MOUSE_SENS=800 ./play.sh    slower mouse look (default 1800)
 #   (default: full screen; Cmd+Return toggles it any time)
 #   WINDOWED=1 ./play.sh      start in a window instead
@@ -12,23 +12,26 @@
 #   FOV=70 ./play.sh          field of view in degrees (default 90; the
 #                             original game uses 70; aiming zoom stays
 #                             proportional)
-#   FASTGPU=1 ./play.sh       EXPERIMENTAL, off by default (on with ANGLE=1): GPU
+#   FASTGPU=1 ./play.sh       EXPERIMENTAL, on with ANGLE (the default): GPU
 #                             dirty tracking and no per-flip surface readback (+20%
 #                             fps, not verified in effect-heavy scenes; FASTGPU=0
 #                             turns it off if the picture is wrong)
 #   AA=0 ./play.sh            no FXAA edge smoothing (on by default)
 #   FILTER=nearest ./play.sh  hard pixels instead of smooth scaling
-#   FAST=1 ./play.sh          cut every movie (logos, credits, mission
-#                             cinematic) to its header + 1 packet.
-#                             FAST=<n> keeps n packets (about 0.5-2 s each).
-#   ANGLE=1 FAST=1 ./play.sh  Metal renderer through ANGLE (separate build,
-#                             build-angle); ~30 fps in level 1 at SCALE=3 against
-#                             ~15 with the OpenGL build. Turns FASTGPU on.
-# Log of the run: build-mac/last-run.log
+#   FAST=0 ./play.sh          full movies. By default every movie (logos,
+#                             credits, mission cinematic) is cut to its header
+#                             + 1 packet; FAST=<n> keeps n packets (0.5-2 s each).
+#   ANGLE=0 ./play.sh         desktop OpenGL build (build-mac) instead of the
+#                             default Metal renderer through ANGLE (build-angle):
+#                             ~15 fps in level 1 at SCALE=3 against ~30.
+#                             ANGLE turns FASTGPU on.
+# Log of the run: <build>/last-run.log
 set -e
 HERE="${0:A:h}"
-BUILD=build-mac
-[ -n "$ANGLE" ] && BUILD=build-angle
+ANGLE="${ANGLE:-1}"
+FAST="${FAST:-1}"
+BUILD=build-angle
+[ "$ANGLE" = 0 ] && ANGLE= && BUILD=build-mac
 BIN="$HERE/$BUILD/black-recomp"
 GAME="${BLACK_GAME_DIR:-/path/to/project/black/extracted/Black (USA).xiso}"
 
@@ -38,15 +41,16 @@ GAME="${BLACK_GAME_DIR:-/path/to/project/black/extracted/Black (USA).xiso}"
 echo "Black arrancando. Ventana del juego: dale foco y usa el teclado."
 echo "Enter = Start (título)   Espacio = aceptar   flechas = menús   Tab = atrás"
 echo "Pantalla completa por defecto (Cmd+Intro alterna). WINDOWED=1 para ventana."
-echo "En el nivel: WASD mover, ratón o IJKL mirar, clic izq. disparar, clic der. apuntar, Esc suelta el ratón."
-[ -n "$FAST" ] && echo "MODO RÁPIDO: vídeos recortados (FAST=$FAST). Sin FAST se reproducen completos."
+echo "En el nivel: WASD mover, ratón mirar, clic izq. disparar, clic der. apuntar, E usar, C/Ctrl agacharse, R recargar,"
+echo "rueda/1/2 arma, G granada, F/V cuerpo a cuerpo, B/X modo de disparo, Shift precisión, Esc pausa, Tab objetivos."
+[ "$FAST" != 0 ] && echo "MODO RÁPIDO: vídeos recortados (FAST=$FAST). FAST=0 los reproduce completos."
 echo "Ctrl+C aquí cierra el juego. Log: $HERE/$BUILD/last-run.log"
 
 mkdir -p "$HERE/evidence-live"; find "$HERE/evidence-live" -name "shot_*.bmp" -delete
 cd "$HERE/$BUILD"
-# FAST=1 -> RECOMP_XMV_PACKETS=1; FAST=<n> -> n; unset -> full movies.
-if [ -n "$FAST" ]; then
-    case "$FAST" in *[!0-9]*|0) export RECOMP_XMV_PACKETS=1 ;; *) export RECOMP_XMV_PACKETS="$FAST" ;; esac
+# FAST=1 (default) -> RECOMP_XMV_PACKETS=1; FAST=<n> -> n; FAST=0 -> full movies.
+if [ "$FAST" != 0 ]; then
+    case "$FAST" in *[!0-9]*) export RECOMP_XMV_PACKETS=1 ;; *) export RECOMP_XMV_PACKETS="$FAST" ;; esac
 fi
 [ -z "$WINDOWED" ] && export RECOMP_FULLSCREEN=1
 [ -n "$WINDOW" ] && export RECOMP_WINDOW="$WINDOW"

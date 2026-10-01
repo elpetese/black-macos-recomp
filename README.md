@@ -68,25 +68,25 @@ the OpenGL build. It needs a directory holding ANGLE's `libEGL.dylib` and
 cmake -S . -B build-angle -DCMAKE_BUILD_TYPE=Release \
       -DXEMU_ANGLE_LIB_DIR=/path/to/angle/libs
 cmake --build build-angle --target black-recomp -j8
-ANGLE=1 FAST=1 ./play.sh
+./play.sh                 # ANGLE is the default; ANGLE=0 uses build-mac
 ```
 
 ## Run
 
 ```sh
-./play.sh                 # full screen, keyboard and mouse
-FAST=1 ./play.sh          # cut the videos; first level in ~1.5 min instead of ~7
+./play.sh                 # full screen, Metal (ANGLE) build, short videos, 1920x1440
+FAST=0 ./play.sh          # full videos (first level in ~7 min instead of ~1.5)
 WINDOWED=1 ./play.sh       # start in a window
 SCALE=2 ./play.sh         # 1280x960 if the level load ever freezes
 ASPECT=4:3 ./play.sh      # the game renders widescreen; 4:3 adds side bars
 FOV=70 ./play.sh          # the original uses 70 (default here is 90)
-ANGLE=1 ./play.sh         # Metal renderer (build-angle); FASTGPU on by default
+ANGLE=0 ./play.sh         # desktop OpenGL build (build-mac) instead of ANGLE
 ```
 
 `play.sh` needs the game directory. It defaults to
 `/path/to/project/black/extracted/Black (USA).xiso`; override with
 `BLACK_GAME_DIR=<folder containing default.xbe>`. The log of the run goes to
-`build-mac/last-run.log`.
+`build-angle/last-run.log` (`build-mac/` with `ANGLE=0`).
 
 ## Controls
 
@@ -94,23 +94,24 @@ The game window needs focus.
 
 | Key | Xbox pad | In Black |
 |---|---|---|
-| Enter | Start | Start, pause |
-| Space | A | Accept |
-| Tab | Back | Back |
-| X | B | Cancel |
-| Q | X | Reload |
-| E | Y | Change weapon |
-| Arrows | D-pad | Menus |
 | W A S D | Left stick | Move |
-| I J K L or mouse | Right stick | Aim |
-| Left click | Left trigger | Fire |
-| Right click | Right trigger | Aim down sights |
-| F / H | Stick clicks | Crouch / melee |
-| V / C | Triggers | Fire / aim |
-| 1 / 2 | White / Black | Grenades |
+| Mouse (or I J K L) | Right stick | Look / aim |
+| Left click | Right trigger | Fire |
+| Right click | Left trigger | Aim down sights (zoom) |
+| E (or Space) | A | Use, pick up, open doors; accept in menus |
+| C or Ctrl | B | Crouch |
+| R | X | Reload |
+| Wheel, 1 / 2 (or Q) | Y | Change weapon |
+| G or side mouse button | White | Throw grenade |
+| F or V | Black | Melee |
+| B or X | Left-stick click | Fire mode |
+| Shift | Right-stick click | Precision aim |
+| Arrows, 3 / 4 | D-pad | Menus, quick select |
+| Esc (or Enter) | Start | Pause (Esc also frees the mouse) |
+| Tab | Back | Mission objectives |
 | Cmd+Return | | Toggle full screen |
 
-To play: Enter on the title, Space on START MISSION, NORMAL, the mission
+To play: Enter on the title, Space or E on START MISSION, NORMAL, the mission
 briefing, then wait for "RENDEZVOUS WITH BLACK CELL" (about 40 s after the
 level loads; the game ignores the pad before that).
 
