@@ -39,6 +39,22 @@ The port's running notes live in the toolkit repository, in
 `src/recomp/gen/` is **generated** and not committed. Regenerate it from the
 toolkit; see `REGENERATE.md`. Without it the project will not build.
 
+## Quick start
+
+```sh
+mkdir black && cd black
+git clone https://github.com/elpetese/black-macos-recomp.git
+git clone https://github.com/elpetese/black-macos-runtime.git xboxrecomp
+git -C xboxrecomp submodule update --init --recursive
+pip3 install capstone unicorn
+cd black-macos-recomp && ./reproduce.sh /path/to/your/Black.iso
+BLACK_GAME_DIR=$PWD/game_files ./play.sh
+```
+
+`reproduce.sh` extracts your disc, lifts the game to C and builds it. It uses
+`analysis/black-analysis.tar.xz`, a function database (addresses and call
+graph only; no game code or assets). Details: [METHODOLOGY.md](METHODOLOGY.md).
+
 ## Build
 
 Needs a sibling `../xboxrecomp` checkout, plus SDL3, glib, epoxy and

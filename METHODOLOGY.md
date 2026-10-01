@@ -32,49 +32,64 @@ not committed: you regenerate it from your own `default.xbe`.
 ## 2. Get the sources
 
 ```sh
+mkdir black && cd black
 git clone https://github.com/elpetese/black-macos-recomp.git
 git clone https://github.com/elpetese/black-macos-runtime.git xboxrecomp
-git -C xboxrecomp checkout black-lifter-upstream     # if not the default branch
 git -C xboxrecomp submodule update --init --recursive
+pip3 install capstone unicorn
 ```
 
 Keep them as siblings: `black-macos-recomp/` and `xboxrecomp/`
-(or pass `-DXBOXRECOMP_DIR=`).
+(or set `XBOXRECOMP_DIR`).
 
-## 3. Extract the disc (your own copy)
-
-```sh
-cd xboxrecomp
-python3 -m tools.xiso unpack /path/to/your/Black.iso -o ../black-macos-recomp/game_files
-```
-
-`game_files/` must contain `default.xbe`. It is git-ignored; never commit it.
-Also copy `default.xbe` to `xboxrecomp/game_files/default.xbe` for the lifter.
-
-## 4. Lift the game to C
+## 3. One command: disc -> playable build
 
 ```sh
-cd xboxrecomp
-python3 -m tools.recomp game_files/default.xbe --game-name Black --all \
-    --split 1000 --weak-feedback-seeds \
-    --exclude-manual ../black-macos-recomp/src/recomp_natives.c \
-    --gen-dir ../black-macos-recomp/src/recomp/gen
+cd black-macos-recomp
+./reproduce.sh /path/to/your/Black.iso
 ```
 
-`--weak-feedback-seeds` is required. `seeds/hand_seeds.json` lists functions
-reachable only through pointers that static analysis cannot see; this file
-grows as the logs report `ICALL` / `UNIMPL` targets.
+`reproduce.sh` does, in order (read it; every step is a plain command):
 
-## 5. Build
-
-```sh
-cd ../black-macos-recomp
-cmake -S . -B build-mac -DCMAKE_BUILD_TYPE=Release
-cmake --build build-mac --target black-recomp -j8
-```
+1. **Extract the disc** with `tools.xiso unpack` into `game_files/`
+   (git-ignored; never commit it) and copy `default.xbe` to the toolkit.
+2. **Parse the XBE** (`tools.xbe_parser`) and unpack `analysis/black-analysis.tar.xz`.
+   That archive holds only the function database for Black: addresses, sizes,
+   call graph, labels, calling-convention guesses. It contains no code bytes,
+   assets or text from the game. It is the result of the toolkit's analysis
+   stages (below) refined over many boot/crash iterations, and it is what makes
+   the lifted code match the working port.
+3. **Lift to C** with `tools.recomp ... --weak-feedback-seeds`, writing
+   `src/recomp/gen/` (local, git-ignored, ~1.5M lines, ~1 min).
+4. **Build** with CMake into `build-mac/`.
 
 Metal/ANGLE build: add `-DXEMU_ANGLE_LIB_DIR=/path/to/angle/libs` and use
-`-B build-angle`.
+`-B build-angle` (see README).
+
+## 4. Where the analysis data comes from (to redo it yourself)
+
+The archive is not magic; the toolkit stages that produce it are:
+
+```sh
+cd xboxrecomp
+python3 -m tools.disasm game_files/default.xbe --text-only \
+    --seed-functions ../black-macos-recomp/seeds/icall_targets.json
+python3 -m tools.func_id game_files/default.xbe
+python3 -m tools.abi_analysis game_files/default.xbe
+```
+
+`seeds/hand_seeds.json` (hand-found functions only reachable through
+pointers) and `seeds/icall_targets.json` (761 indirect-call targets observed
+at run time) feed the disassembler. A from-scratch run gives a similar but not
+identical function set; the runtime loop below is how the set was grown:
+run, read `ICALL`/`UNIMPL` lines, add targets to the seeds, re-run the stages,
+re-lift, rebuild. Use the shipped archive unless you are extending the port.
+
+## 5. Notes
+
+- Results from the shipped archive are byte-identical to the author's
+  generated code.
+- Python 3.9+ works; the toolkit documents 3.10+.
 
 ## 6. Run
 

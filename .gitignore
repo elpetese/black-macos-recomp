@@ -13,3 +13,9 @@ src/recomp/gen.new/
 /src/recomp/gen-shadow/
 /build-shadow/
 crash-logs/
+
+# never commit game data
+game_files/
+*.xbe
+*.iso
+*.xiso
