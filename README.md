@@ -57,6 +57,20 @@ cmake --build build-mac --target black-recomp -j8
 `CMakeLists.txt` looks for the toolkit at `../xboxrecomp`; point
 `-DXBOXRECOMP_DIR=` elsewhere if you keep it somewhere else.
 
+### Metal renderer (ANGLE)
+
+A second build runs xemu's renderer on OpenGL ES through ANGLE's Metal
+backend: about 30 fps in level 1 at the default scale, against about 15 for
+the OpenGL build. It needs a directory holding ANGLE's `libEGL.dylib` and
+`libGLESv2.dylib` (Metal backend); both are copied next to the binary.
+
+```sh
+cmake -S . -B build-angle -DCMAKE_BUILD_TYPE=Release \
+      -DXEMU_ANGLE_LIB_DIR=/path/to/angle/libs
+cmake --build build-angle --target black-recomp -j8
+ANGLE=1 FAST=1 ./play.sh
+```
+
 ## Run
 
 ```sh
@@ -66,6 +80,7 @@ WINDOWED=1 ./play.sh       # start in a window
 SCALE=2 ./play.sh         # 1280x960 if the level load ever freezes
 ASPECT=4:3 ./play.sh      # the game renders widescreen; 4:3 adds side bars
 FOV=70 ./play.sh          # the original uses 70 (default here is 90)
+ANGLE=1 ./play.sh         # Metal renderer (build-angle); FASTGPU on by default
 ```
 
 `play.sh` needs the game directory. It defaults to
@@ -140,8 +155,14 @@ Set by `play.sh`; useful on their own for diagnosing a hang.
 - **PS4 controller** (medium). SDL sees 0 joysticks; needs the SDL input
   subsystem and Input Monitoring permission on macOS.
 - **Audio** (unresolved). The pipeline reaches SDL2 but the APU's DSP56300
-  GP/EP is a stub, so the game's own mix never reaches the output. A real
-  GP/EP exists in the toolkit behind `RECOMP_REAL_DSP=1`.
+  GP/EP is a stub. The sibling runtime now mixes even numbered APU bins left
+  and odd numbered bins right, so Black's observed bins 20 and 19 reach
+  separate channels. Its ADPCM decoder also accepts the reserved header byte
+  and clamps the initial step index. These changes improve basic playback;
+  DSP effects and a faithful final mix still need the real GP/EP. The
+  `RECOMP_REAL_DSP=1` implementation is present but not wired into the build
+  or APU dispatch yet. Run with `RECOMP_AUDIO_TEST=1` to verify host output;
+  that tone bypasses the game's voice and DSP pipeline.
 
 ## Credits
 

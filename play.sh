@@ -12,22 +12,27 @@
 #   FOV=70 ./play.sh          field of view in degrees (default 90; the
 #                             original game uses 70; aiming zoom stays
 #                             proportional)
-#   FASTGPU=1 ./play.sh       EXPERIMENTAL, off by default: GPU dirty tracking and no
-#                             per-flip surface readback (+20% fps, not verified in
-#                             effect-heavy scenes; turn it off if the picture is wrong)
+#   FASTGPU=1 ./play.sh       EXPERIMENTAL, off by default (on with ANGLE=1): GPU
+#                             dirty tracking and no per-flip surface readback (+20%
+#                             fps, not verified in effect-heavy scenes; FASTGPU=0
+#                             turns it off if the picture is wrong)
 #   AA=0 ./play.sh            no FXAA edge smoothing (on by default)
 #   FILTER=nearest ./play.sh  hard pixels instead of smooth scaling
 #   FAST=1 ./play.sh          cut every movie (logos, credits, mission
-#                             cinematic) to its header + 3 packets, so the first
-#                             level is reached in ~1.5 min instead of ~7.
+#                             cinematic) to its header + 1 packet.
 #                             FAST=<n> keeps n packets (about 0.5-2 s each).
+#   ANGLE=1 FAST=1 ./play.sh  Metal renderer through ANGLE (separate build,
+#                             build-angle); ~30 fps in level 1 at SCALE=3 against
+#                             ~15 with the OpenGL build. Turns FASTGPU on.
 # Log of the run: build-mac/last-run.log
 set -e
 HERE="${0:A:h}"
-BIN="$HERE/build-mac/black-recomp"
+BUILD=build-mac
+[ -n "$ANGLE" ] && BUILD=build-angle
+BIN="$HERE/$BUILD/black-recomp"
 GAME="${BLACK_GAME_DIR:-/path/to/project/black/extracted/Black (USA).xiso}"
 
-[ -x "$BIN" ]  || { echo "Falta $BIN. Compila primero:  make -C \"$HERE/build-mac\" black-recomp"; exit 1; }
+[ -x "$BIN" ]  || { echo "Falta $BIN. Compila primero: cmake --build \"$HERE/$BUILD\" --target black-recomp -j8"; exit 1; }
 [ -f "$GAME/default.xbe" ] || { echo "No encuentro $GAME/default.xbe (exporta BLACK_GAME_DIR=<carpeta del juego>)"; exit 1; }
 
 echo "Black arrancando. Ventana del juego: dale foco y usa el teclado."
@@ -35,19 +40,20 @@ echo "Enter = Start (título)   Espacio = aceptar   flechas = menús   Tab = atr
 echo "Pantalla completa por defecto (Cmd+Intro alterna). WINDOWED=1 para ventana."
 echo "En el nivel: WASD mover, ratón o IJKL mirar, clic izq. disparar, clic der. apuntar, Esc suelta el ratón."
 [ -n "$FAST" ] && echo "MODO RÁPIDO: vídeos recortados (FAST=$FAST). Sin FAST se reproducen completos."
-echo "Ctrl+C aquí cierra el juego. Log: $HERE/build-mac/last-run.log"
+echo "Ctrl+C aquí cierra el juego. Log: $HERE/$BUILD/last-run.log"
 
 mkdir -p "$HERE/evidence-live"; find "$HERE/evidence-live" -name "shot_*.bmp" -delete
-cd "$HERE/build-mac"
-# FAST=1 (or any non-number) -> RECOMP_XMV_PACKETS=3; FAST=<n> -> n; unset -> full movies.
+cd "$HERE/$BUILD"
+# FAST=1 -> RECOMP_XMV_PACKETS=1; FAST=<n> -> n; unset -> full movies.
 if [ -n "$FAST" ]; then
-    case "$FAST" in ''|*[!0-9]*|0|1) export RECOMP_XMV_PACKETS=3 ;; *) export RECOMP_XMV_PACKETS="$FAST" ;; esac
+    case "$FAST" in *[!0-9]*|0) export RECOMP_XMV_PACKETS=1 ;; *) export RECOMP_XMV_PACKETS="$FAST" ;; esac
 fi
 [ -z "$WINDOWED" ] && export RECOMP_FULLSCREEN=1
 [ -n "$WINDOW" ] && export RECOMP_WINDOW="$WINDOW"
 [ -n "$FILTER" ] && export RECOMP_FILTER="$FILTER"
 [ -n "$ASPECT" ] && export RECOMP_ASPECT="$ASPECT"
-[ -n "$FASTGPU" ] && export RECOMP_NO_FLIP_DOWNLOAD=1 RECOMP_DIRTY_TRACKING=1
+[ -n "$ANGLE" ] && FASTGPU="${FASTGPU-1}"
+[ -n "$FASTGPU" ] && [ "$FASTGPU" != 0 ] && export RECOMP_NO_FLIP_DOWNLOAD=1 RECOMP_DIRTY_TRACKING=1
 export RECOMP_SCALE="${SCALE:-3}"
 export RECOMP_FOV="${FOV:-90}"
 [ -n "$AA" ] && export RECOMP_AA="$AA"

@@ -38,6 +38,21 @@ target_link_libraries(${PROJECT_NAME} PRIVATE xboxrecomp)
 
 if(APPLE)
     target_link_libraries(${PROJECT_NAME} PRIVATE xemu_nv2a)
+    if(XEMU_ANGLE_LIB_DIR)
+        add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${XEMU_ANGLE_LIB_DIR}/libEGL.dylib" "$<TARGET_FILE_DIR:${PROJECT_NAME}>/libEGL.dylib"
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${XEMU_ANGLE_LIB_DIR}/libGLESv2.dylib" "$<TARGET_FILE_DIR:${PROJECT_NAME}>/libGLESv2.dylib"
+            COMMAND install_name_tool -change
+                "@executable_path/../Frameworks/libEGL.dylib" "@loader_path/libEGL.dylib"
+                "$<TARGET_FILE:${PROJECT_NAME}>"
+            COMMAND install_name_tool -change
+                "@executable_path/../Frameworks/libGLESv2.dylib" "@loader_path/libGLESv2.dylib"
+                "$<TARGET_FILE:${PROJECT_NAME}>"
+            COMMAND codesign --force --sign - "$<TARGET_FILE:${PROJECT_NAME}>"
+            VERBATIM)
+    endif()
 endif()
 
 target_include_directories(${PROJECT_NAME} PRIVATE
